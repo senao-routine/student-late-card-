@@ -80,6 +80,10 @@
     @apply bg-white text-black;
   }
 
+  body * {
+    visibility: hidden !important;
+  }
+
   .print-hide {
     display: none !important;
   }
@@ -91,15 +95,20 @@
   }
 
   .print-area {
-    width: 100% !important;
-    max-width: none !important;
-    padding: 0 !important;
+    position: absolute !important;
+    inset: 0 !important;
+    width: 21cm !important;
+    max-width: 21cm !important;
+    padding: 0.5cm !important;
     border: none !important;
     box-shadow: none !important;
+    visibility: visible !important;
+    page-break-after: avoid !important;
   }
 
   .print-area * {
     color: black !important;
+    visibility: visible !important;
   }
 }
 

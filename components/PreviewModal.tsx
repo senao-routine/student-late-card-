@@ -9,6 +9,8 @@ interface PreviewModalProps {
   contact: string
   reason: string
   otherReason: string
+  teacher: string
+  notes: string
   onClose: () => void
 }
 
@@ -19,6 +21,8 @@ const PreviewModal: React.FC<PreviewModalProps> = ({
   contact,
   reason,
   otherReason,
+  teacher,
+  notes,
   onClose,
 }) => {
   const handlePrint = () => {
@@ -42,7 +46,7 @@ const PreviewModal: React.FC<PreviewModalProps> = ({
 
         {/* コンテンツ */}
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
-          <div className="bg-white border-2 border-gray-300 rounded-lg p-6 mx-auto print-area" style={{ maxWidth: "21cm", minHeight: "29.7cm" }}>
+          <div className="bg-white border-2 border-gray-300 rounded-lg p-6 mx-auto print-area" style={{ maxWidth: "21cm" }}>
             <PrintView
               studentId={studentId}
               studentInfo={studentInfo}
@@ -50,6 +54,8 @@ const PreviewModal: React.FC<PreviewModalProps> = ({
               contact={contact}
               reason={reason}
               otherReason={otherReason}
+              teacher={teacher}
+              notes={notes}
             />
           </div>
         </div>

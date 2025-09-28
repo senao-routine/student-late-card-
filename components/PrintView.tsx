@@ -7,9 +7,14 @@ interface PrintViewProps {
   contact: string
   reason: string
   otherReason: string
+  teacher: string
+  notes: string
 }
 
-const PrintView: React.FC<PrintViewProps> = ({ studentId, studentInfo, dateTime, contact, reason, otherReason }) => {
+const PrintView: React.FC<PrintViewProps> = ({ studentId, studentInfo, dateTime, contact, reason, otherReason, teacher, notes }) => {
+  const displayNotes = notes?.trim() ? notes : "-"
+  const displayTeacher = teacher?.trim() ? teacher : "未選択"
+
   return (
     <div className="px-12 py-10 max-w-[19cm] mx-auto print-card">
       <header className="text-center mb-8">
@@ -39,12 +44,17 @@ const PrintView: React.FC<PrintViewProps> = ({ studentId, studentInfo, dateTime,
           <span className="font-semibold text-gray-900">
             {reason === "その他" ? otherReason || "-" : reason || "-"}
           </span>
+
+          <span className="font-semibold text-gray-700">備考</span>
+          <span className="font-semibold text-gray-900">{displayNotes}</span>
         </div>
       </section>
 
       <section className="mt-10">
-        <h2 className="text-lg font-semibold text-gray-700">教員記入欄</h2>
-        <div className="mt-3 h-24 border border-dashed border-gray-400 rounded-lg"></div>
+        <h2 className="text-lg font-semibold text-gray-700">担当教員</h2>
+        <div className="mt-3 h-24 border border-gray-400 rounded-lg flex items-center justify-center bg-gray-50">
+          <span className="text-2xl font-bold text-gray-800">{displayTeacher}</span>
+        </div>
       </section>
 
       <footer className="mt-6 text-sm text-gray-400 text-right">
