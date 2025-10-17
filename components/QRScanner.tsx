@@ -12,6 +12,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
   const [error, setError] = useState<string | null>(null)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const [isScanning, setIsScanning] = useState(false)
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment")
 
   useEffect(() => {
     const qrCodeRegionId = "qr-reader"
@@ -42,7 +43,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
         scannerRef.current = new Html5Qrcode(qrCodeRegionId)
         
         await scannerRef.current.start(
-          { facingMode: "environment" },
+          { facingMode: facingMode },
           {
             fps: 10,
             qrbox: 250
@@ -78,13 +79,24 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
         }).catch((err) => console.error("Stop error:", err))
       }
     }
-  }, [])
+  }, [facingMode, onScan])
+
+  const toggleCamera = () => {
+    setFacingMode((prevMode) => (prevMode === "environment" ? "user" : "environment"))
+  }
 
   return (
     <div className="w-full">
       <div className="text-center mb-4">
         <p className="text-lg text-gray-600 font-medium">学生証のQRコードをスキャン</p>
         <p className="text-sm text-gray-500 mt-1">カメラにQRコードを向けてください</p>
+        <button
+          onClick={toggleCamera}
+          className="mt-3 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition duration-200 ease-in-out transform hover:scale-105 shadow-md"
+          disabled={!isScanning}
+        >
+          {facingMode === "environment" ? "📱 インカメラに切替" : "📷 背面カメラに切替"}
+        </button>
       </div>
       <div id="qr-reader" className="rounded-lg shadow-lg overflow-hidden mx-auto" style={{ maxWidth: '100%', minHeight: '250px' }}></div>
       {error && (
