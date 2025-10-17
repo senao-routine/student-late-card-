@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "export": "next build",
+    "deploy": "npm run build && firebase deploy --only hosting",
+    "serve": "npm run build && firebase serve --only hosting"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -45,6 +48,10 @@
     "cmdk": "1.0.4",
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.1",
+    "firebase": "^12.3.0",
+    "firebase-admin": "^13.5.0",
+    "firebase-functions": "^6.5.0",
+    "googleapis": "^161.0.0",
     "html5-qrcode": "^2.3.8",
     "input-otp": "1.4.1",
     "lucide-react": "^0.454.0",

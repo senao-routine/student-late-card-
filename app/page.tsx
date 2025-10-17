@@ -8,8 +8,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { getStudentInfo } from "./actions"
-import PreviewModal from "../components/PreviewModal"
+// Client-side data handling
+import { useToast } from "@/hooks/use-toast"
 
 const QRScanner = dynamic(() => import("../components/QRScanner"), { ssr: false })
 
@@ -24,7 +24,8 @@ export default function Home() {
   const [otherReason, setOtherReason] = useState<string>("")
   const [teacher, setTeacher] = useState<string>("")
   const [notes, setNotes] = useState<string>("")
-  const [showPreview, setShowPreview] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -43,20 +44,24 @@ export default function Home() {
     }
   }, [teacher])
 
+  // モックデータベース（実際のデータベースの代わり）
+  const mockStudentDatabase: Record<string, { class: string; name: string }> = {
+    "12344321": { class: "3-A", name: "山田太郎" },
+    "67890": { class: "2-B", name: "佐藤花子" },
+    // 必要に応じて学生データを追加
+  }
+
   const handleScan = async (result: string) => {
     setScannedResult(result)
     setStudentInfo(null)
     setError(null)
 
-    try {
-      const response = await getStudentInfo(result)
-      if (response.success) {
-        setStudentInfo(response.data)
-      } else {
-        setError(response.error)
-      }
-    } catch (err) {
-      setError("エラーが発生しました。もう一度お試しください。")
+    // クライアント側でモックデータから学生情報を取得
+    const student = mockStudentDatabase[result]
+    if (student) {
+      setStudentInfo(student)
+    } else {
+      setError("生徒情報が見つかりません。管理者に登録を依頼してください。")
     }
   }
 
@@ -70,6 +75,67 @@ export default function Home() {
       minute: "2-digit",
       hour12: false,
     })
+  }
+
+  const handleSubmit = async () => {
+    if (!scannedResult || !teacher || !reason) {
+      toast({
+        title: "入力エラー",
+        description: "必要な項目を入力してください",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+    
+    try {
+      // Google Apps Script WebアプリのURL（環境変数から取得）
+      const GAS_URL = process.env.NEXT_PUBLIC_GAS_URL
+      
+      if (!GAS_URL) {
+        throw new Error("Google Apps Script URLが設定されていません")
+      }
+
+      // 送信データの準備
+      const data = {
+        dateTime: getCurrentDateTime(),
+        studentId: scannedResult,
+        studentClass: studentInfo?.class || '',
+        studentName: studentInfo?.name || '',
+        contact: contact,
+        reason: reason === "その他" ? otherReason : reason,
+        teacher: teacher,
+        notes: notes || ''
+      }
+
+      // Google Apps Scriptに送信
+      const response = await fetch(GAS_URL, {
+        method: 'POST',
+        mode: 'no-cors', // CORSを回避
+        headers: {
+          'Content-Type': 'text/plain',
+        },
+        body: JSON.stringify(data),
+      })
+
+      // no-corsモードでは実際のレスポンスが取得できないため、常に成功とみなす
+      toast({
+        title: "送信完了",
+        description: "遅刻記録がGoogleスプレッドシートに送信されました",
+      })
+      resetForm()
+      
+    } catch (error) {
+      console.error('Submit error:', error)
+      toast({
+        title: "エラー",
+        description: "送信中にエラーが発生しました。もう一度お試しください。",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const resetForm = () => {
@@ -203,15 +269,16 @@ export default function Home() {
                   {/* アクションボタン */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                     <Button
-                      onClick={() => setShowPreview(true)}
-                      className="h-14 bg-green-500 hover:bg-green-600 text-white font-semibold text-lg rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
-                      disabled={!teacher}
+                      onClick={handleSubmit}
+                      className="h-14 bg-green-500 hover:bg-green-600 text-white font-semibold text-lg rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!teacher || !reason || isSubmitting}
                     >
-                      印刷プレビュー
+                      {isSubmitting ? "送信中..." : "📨 遅刻記録を送信"}
                     </Button>
                     <Button
                       onClick={resetForm}
                       className="h-14 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold text-lg rounded-lg transition duration-300 ease-in-out transform hover:-translate-y-1 hover:shadow-lg"
+                      disabled={isSubmitting}
                     >
                       新規スキャン
                     </Button>
@@ -269,19 +336,6 @@ export default function Home() {
         </div>
       </div>
 
-      {showPreview && (
-        <PreviewModal
-          studentId={scannedResult}
-          studentInfo={studentInfo}
-          dateTime={getCurrentDateTime()}
-          contact={contact}
-          reason={reason}
-          otherReason={otherReason}
-          teacher={teacher}
-          notes={notes}
-          onClose={() => setShowPreview(false)}
-        />
-      )}
     </div>
   )
 }
