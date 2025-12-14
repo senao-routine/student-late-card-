@@ -1,162 +1,316 @@
-# 📝 Google Apps Script 設定手順
+# 📝 Google Apps Script & スプレッドシート 設定手順
 
-## ステップ1: Google Apps Scriptプロジェクトを作成
+## 📊 システム構成
 
-1. Googleアカウント（s-otobe@kyoto-hanazono-h.ed.jp）でログイン
-2. [Google Apps Script](https://script.google.com/) にアクセス
-3. 「新しいプロジェクト」をクリック
-
-## ステップ2: コードをコピー
-
-1. デフォルトの`コード.gs`ファイルの内容をすべて削除
-2. 以下のコードをコピーして貼り付け：
-
-```javascript
-function doPost(e) {
-  try {
-    // スプレッドシートIDを設定
-    const SPREADSHEET_ID = '1dkUxgjDPDL_6sAhBzhZoKQjxBIF53kWnKYfYz3it-WE';
-    const SHEET_NAME = '遅刻記録';
-    
-    // スプレッドシートを開く
-    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-    let sheet = spreadsheet.getSheetByName(SHEET_NAME);
-    
-    // シートが存在しない場合は作成
-    if (!sheet) {
-      sheet = spreadsheet.insertSheet(SHEET_NAME);
-      // ヘッダー行を追加
-      const headers = ['日時', '学籍番号', 'クラス', '氏名', '連絡状況', '遅刻理由', '担当教員', '備考'];
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      
-      // ヘッダーのスタイル設定
-      const headerRange = sheet.getRange(1, 1, 1, headers.length);
-      headerRange.setBackground('#4285f4');
-      headerRange.setFontColor('#ffffff');
-      headerRange.setFontWeight('bold');
-      sheet.setFrozenRows(1);
-    }
-    
-    // POSTデータを解析
-    const data = JSON.parse(e.postData.contents);
-    
-    // データを配列に整形
-    const row = [
-      data.dateTime || new Date().toLocaleString('ja-JP'),
-      data.studentId || '',
-      data.studentClass || '',
-      data.studentName || '',
-      data.contact || '',
-      data.reason || '',
-      data.teacher || '',
-      data.notes || ''
-    ];
-    
-    // スプレッドシートに追加
-    sheet.appendRow(row);
-    
-    // 成功レスポンス
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        success: true,
-        message: 'Data added successfully',
-        timestamp: new Date().toISOString()
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
-      
-  } catch(error) {
-    // エラーレスポンス
-    console.error('Error:', error);
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        success: false,
-        error: error.toString()
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-// GETリクエスト用（テスト用）
-function doGet(e) {
-  return ContentService
-    .createTextOutput(JSON.stringify({
-      message: 'Google Apps Script is ready!',
-      spreadsheetId: '1dkUxgjDPDL_6sAhBzhZoKQjxBIF53kWnKYfYz3it-WE',
-      timestamp: new Date().toISOString()
-    }))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+```
+┌─────────────────────┐     POST      ┌─────────────────────┐
+│   Webアプリ         │ ───────────▶ │  Google Apps Script │
+│ (QRスキャン＆入力)   │              │      (GAS)          │
+└─────────────────────┘              └──────────┬──────────┘
+                                                │
+                                                ▼
+                               ┌─────────────────────────────┐
+                               │   Google スプレッドシート    │
+                               ├─────────────────────────────┤
+                               │ シート1「全履歴」           │
+                               │   → 全ての遅刻記録を蓄積    │
+                               ├─────────────────────────────┤
+                               │ シート2「本日の遅刻」        │
+                               │   → 当日のデータのみ自動表示 │
+                               ├─────────────────────────────┤
+                               │ シート3「生徒マスター」      │
+                               │   → 学籍番号と生徒情報の対応 │
+                               └─────────────────────────────┘
 ```
 
-3. ファイル名を「遅刻記録API」などわかりやすい名前に変更（オプション）
+---
 
-## ステップ3: プロジェクトを保存
+## 🔧 ステップ1: Googleスプレッドシートを作成
 
-1. Ctrl+S（Mac: Cmd+S）で保存
-2. プロジェクト名を「生徒遅刻記録システム」などに設定
+### 1.1 新しいスプレッドシートを作成
 
-## ステップ4: デプロイ
+1. [Google スプレッドシート](https://sheets.google.com/) にアクセス
+2. 「空白」をクリックして新しいスプレッドシートを作成
+3. スプレッドシート名を「生徒遅刻記録」などに変更
+
+### 1.2 スプレッドシートIDを取得
+
+URLからスプレッドシートIDを確認：
+```
+https://docs.google.com/spreadsheets/d/【このIDをコピー】/edit
+```
+
+例：`1dkUxgjDPDL_6sAhBzhZoKQjxBIF53kWnKYfYz3it-WE`
+
+---
+
+## 🔧 ステップ2: Google Apps Scriptを設定
+
+### 2.1 Apps Scriptを開く
+
+**方法A（推奨）**: スプレッドシートから
+1. スプレッドシートを開く
+2. メニューから「拡張機能」→「Apps Script」を選択
+
+**方法B**: 直接アクセス
+1. [Google Apps Script](https://script.google.com/) にアクセス
+2. 「新しいプロジェクト」をクリック
+
+### 2.2 コードをコピー
+
+1. デフォルトの`コード.gs`ファイルの内容をすべて削除
+2. プロジェクト内の `GoogleAppsScript.gs` ファイルの内容をコピーして貼り付け
+
+### 2.3 スプレッドシートIDを更新
+
+コード内の `CONFIG.SPREADSHEET_ID` を自分のスプレッドシートIDに変更：
+
+```javascript
+const CONFIG = {
+  SPREADSHEET_ID: 'あなたのスプレッドシートID', // ← ここを変更
+  SHEET_ALL_HISTORY: '全履歴',
+  SHEET_TODAY: '本日の遅刻',
+  SHEET_STUDENTS: '生徒マスター'
+};
+```
+
+### 2.4 保存
+
+- Ctrl+S（Mac: Cmd+S）で保存
+- プロジェクト名を「生徒遅刻記録システム」などに設定
+
+---
+
+## 🔧 ステップ3: 初期設定を実行
+
+### 3.1 シートの自動作成
+
+1. Apps Scriptエディタで、関数選択ドロップダウンから `initializeSpreadsheet` を選択
+2. 「実行」ボタンをクリック
+3. 初回実行時は権限の承認が必要（下記参照）
+
+### 3.2 権限の承認
+
+1. 「権限を確認」をクリック
+2. Googleアカウントを選択
+3. 「詳細」をクリック → 「安全でないページに移動」（※自分で作成したスクリプトなので安全です）
+4. 「許可」をクリック
+
+### 3.3 確認
+
+スプレッドシートを開いて、以下の3つのシートが作成されていることを確認：
+
+| シート名 | 内容 |
+|---------|------|
+| 全履歴 | 全ての遅刻記録（青いヘッダー） |
+| 本日の遅刻 | 当日のデータのみ（ピンクのヘッダー） |
+| 生徒マスター | 学籍番号・クラス・氏名の対応表 |
+
+---
+
+## 🔧 ステップ4: Webアプリとしてデプロイ
+
+### 4.1 デプロイ設定
 
 1. 右上の「デプロイ」ボタンをクリック
 2. 「新しいデプロイ」を選択
 3. 歯車アイコン → 「ウェブアプリ」を選択
 4. 以下の設定を行う：
-   - **説明**: 任意（例：v1.0）
-   - **次のユーザーとして実行**: 自分（s-otobe@kyoto-hanazono-h.ed.jp）
-   - **アクセスできるユーザー**: 全員
+
+| 項目 | 設定値 |
+|------|--------|
+| 説明 | v1.0（任意） |
+| 次のユーザーとして実行 | 自分 |
+| アクセスできるユーザー | **全員** |
+
 5. 「デプロイ」ボタンをクリック
 
-## ステップ5: URLを取得
+### 4.2 URLを取得
 
-1. デプロイ完了後、表示される「ウェブアプリ」のURLをコピー
-   - 形式: `https://script.google.com/macros/s/AKfycbx.../exec`
-2. このURLを`.env.local`ファイルに設定
+デプロイ完了後、表示される「ウェブアプリ」のURLをコピー：
+```
+https://script.google.com/macros/s/AKfycbx.../exec
+```
 
-## ステップ6: 権限の承認
+---
 
-初回実行時に権限の承認が必要な場合：
+## 🔧 ステップ5: 環境変数を設定
 
-1. 「権限を確認」をクリック
-2. Googleアカウントを選択
-3. 「詳細」をクリック → 「安全でないページに移動」
-4. 必要な権限を承認
+### 5.1 .env.local ファイルを編集
 
-## ステップ7: テスト
+プロジェクトのルートディレクトリに `.env.local` ファイルを作成/編集：
 
-ブラウザでURLにアクセスして、以下のようなJSONが表示されれば成功：
+```env
+NEXT_PUBLIC_GAS_URL=https://script.google.com/macros/s/あなたのスクリプトID/exec
+```
 
+### 5.2 再ビルド＆デプロイ
+
+```bash
+npm run build
+firebase deploy --only hosting
+```
+
+---
+
+## 🔧 ステップ6: 動作確認
+
+### 6.1 GASのテスト
+
+ブラウザでGAS URLにアクセス：
+```
+https://script.google.com/macros/s/あなたのスクリプトID/exec
+```
+
+以下のようなJSONが表示されれば成功：
 ```json
 {
+  "status": "OK",
   "message": "Google Apps Script is ready!",
-  "spreadsheetId": "1KllPnAs1EpifheKLmNRIAYR7aXeHGFtW0cFeYuXiCjE",
-  "timestamp": "2024-XX-XXTXX:XX:XX.XXXZ"
+  "spreadsheetId": "...",
+  "timestamp": "...",
+  "availableActions": ["getStudent", "getStudents", "getTodayRecords"]
 }
 ```
 
-## トラブルシューティング
+### 6.2 テストデータの送信
 
-### エラー: スプレッドシートにアクセスできない
+Apps Scriptエディタで `testAddRecord` 関数を実行すると、テストデータがスプレッドシートに追加されます。
+
+---
+
+## 📋 スプレッドシートの構成詳細
+
+### シート1: 全履歴
+
+| 列 | 内容 | 例 |
+|----|------|-----|
+| A | 日時 | 2024/01/15 08:45:30 |
+| B | 日付（フィルタ用） | 2024/01/15 |
+| C | 時刻 | 08:45:30 |
+| D | 学籍番号 | 12344321 |
+| E | クラス | 3-A |
+| F | 氏名 | 山田太郎 |
+| G | 連絡状況 | あり |
+| H | 遅刻理由 | 交通機関遅延 |
+| I | 担当教員 | 山本先生 |
+| J | 備考 | 電車遅延証明あり |
+
+### シート2: 本日の遅刻
+
+- 全履歴と同じ構成
+- データ送信時に自動的に当日分のみが抽出される
+- ピンク色のヘッダーで区別
+
+### シート3: 生徒マスター
+
+| 列 | 内容 | 例 |
+|----|------|-----|
+| A | 学籍番号 | 12344321 |
+| B | クラス | 3-A |
+| C | 氏名 | 山田太郎 |
+
+**生徒を追加するには:**
+このシートに直接行を追加してください。QRコードの内容が学籍番号として使用されます。
+
+---
+
+## 🔄 毎日の自動クリア設定（任意）
+
+「本日の遅刻」シートを毎日0時に自動クリアする場合：
+
+1. Apps Scriptエディタで「トリガー」（時計アイコン）をクリック
+2. 「トリガーを追加」をクリック
+3. 以下の設定：
+
+| 項目 | 設定値 |
+|------|--------|
+| 実行する関数 | clearTodaySheet |
+| イベントのソース | 時間主導型 |
+| 時間ベースのトリガーのタイプ | 日付ベースのタイマー |
+| 時刻 | 午前0時〜1時 |
+
+---
+
+## 🔌 APIエンドポイント
+
+### POST（データ送信）
+
+```
+POST https://script.google.com/.../exec
+Content-Type: application/json
+
+{
+  "studentId": "12344321",
+  "studentClass": "3-A",
+  "studentName": "山田太郎",
+  "contact": "あり",
+  "reason": "交通機関遅延",
+  "teacher": "山本先生",
+  "notes": "備考テキスト"
+}
+```
+
+### GET（データ取得）
+
+| エンドポイント | 説明 |
+|---------------|------|
+| `?action=status` | ステータス確認（デフォルト） |
+| `?action=getStudent&studentId=12344321` | 特定の生徒情報を取得 |
+| `?action=getStudents` | 全生徒リストを取得 |
+| `?action=getTodayRecords` | 本日の遅刻記録を取得 |
+
+---
+
+## ❓ トラブルシューティング
+
+### データが送信されない
+
+1. GAS URLが正しく設定されているか確認
+2. ブラウザの開発者コンソールでエラーを確認（F12）
+3. Apps Scriptの実行ログを確認（表示 → ログ）
+
+### 「アクセスが拒否されました」エラー
+
+- デプロイ設定で「アクセスできるユーザー」が「全員」になっているか確認
+- 新しいデプロイを作成し直す
+
+### スプレッドシートが更新されない
+
 - スプレッドシートIDが正しいか確認
-- Google Apps Scriptがスプレッドシートにアクセスする権限があるか確認
+- Apps Scriptがスプレッドシートにアクセスする権限があるか確認
 
-### エラー: CORS
-- アクセスできるユーザーが「全員」に設定されているか確認
+### QRコードが読み取れない
 
-### データが追加されない
-- Google Apps Scriptのログを確認（表示 → ログ）
-- スプレッドシートのシート名が「遅刻記録」になっているか確認
+- HTTPSでアクセスしているか確認（カメラはHTTPS必須）
+- ブラウザのカメラ許可を確認
 
-## 更新方法
+---
 
-コードを変更した場合：
-1. コードを編集
+## 🔄 コード更新時の手順
+
+1. Apps Scriptエディタでコードを編集
 2. 保存（Ctrl+S / Cmd+S）
 3. デプロイ → デプロイを管理
 4. 編集（鉛筆アイコン）
 5. バージョン：「新バージョン」を選択
 6. 「デプロイ」
 
-## セキュリティ上の注意
+**重要**: URLは変わりませんが、新バージョンの選択を忘れると変更が反映されません。
 
-- このURLは公開URLのため、知っている人なら誰でもアクセス可能
-- 重要な個人情報を扱う場合は、追加のセキュリティ対策を検討してください
+---
+
+## 💡 活用例
+
+### 月次レポートの作成
+
+「全履歴」シートで以下のようなフィルタや関数が使えます：
+
+```
+=COUNTIF(B:B, "2024/01/*")  // 1月の遅刻件数
+=SUMPRODUCT((H:H="寝坊")*1)  // 「寝坊」の件数
+```
+
+### クラス別集計
+
+ピボットテーブルを使って、クラス別・理由別の集計が可能です。

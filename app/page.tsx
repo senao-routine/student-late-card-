@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,12 +8,17 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-// Client-side data handling
 import { useToast } from "@/hooks/use-toast"
 
 const QRScanner = dynamic(() => import("../components/QRScanner"), { ssr: false })
 
 const teachers = ["山本先生", "佐藤先生", "鈴木先生", "高橋先生"]
+
+// フォールバック用のローカル生徒データ（GASが使えない場合用）
+const fallbackStudentDatabase: Record<string, { class: string; name: string }> = {
+  "12344321": { class: "3-A", name: "山田太郎" },
+  "67890": { class: "2-B", name: "佐藤花子" },
+}
 
 export default function Home() {
   const [scannedResult, setScannedResult] = useState<string | null>(null)
@@ -25,6 +30,7 @@ export default function Home() {
   const [teacher, setTeacher] = useState<string>("")
   const [notes, setNotes] = useState<string>("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoadingStudent, setIsLoadingStudent] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -44,26 +50,59 @@ export default function Home() {
     }
   }, [teacher])
 
-  // モックデータベース（実際のデータベースの代わり）
-  const mockStudentDatabase: Record<string, { class: string; name: string }> = {
-    "12344321": { class: "3-A", name: "山田太郎" },
-    "67890": { class: "2-B", name: "佐藤花子" },
-    // 必要に応じて学生データを追加
-  }
+  // Googleスプレッドシートから生徒情報を取得
+  const fetchStudentFromGAS = useCallback(async (studentId: string): Promise<{ class: string; name: string } | null> => {
+    const GAS_URL = process.env.NEXT_PUBLIC_GAS_URL
+    if (!GAS_URL) {
+      console.warn("GAS URLが設定されていません。フォールバックデータを使用します。")
+      return null
+    }
 
-  const handleScan = async (result: string) => {
+    try {
+      const response = await fetch(`${GAS_URL}?action=getStudent&studentId=${encodeURIComponent(studentId)}`)
+      const data = await response.json()
+      
+      if (data.success && data.student) {
+        return {
+          class: data.student.class,
+          name: data.student.name
+        }
+      }
+      return null
+    } catch (error) {
+      console.error("生徒情報取得エラー:", error)
+      return null
+    }
+  }, [])
+
+  const handleScan = useCallback(async (result: string) => {
     setScannedResult(result)
     setStudentInfo(null)
     setError(null)
+    setIsLoadingStudent(true)
 
-    // クライアント側でモックデータから学生情報を取得
-    const student = mockStudentDatabase[result]
-    if (student) {
-      setStudentInfo(student)
-    } else {
-      setError("生徒情報が見つかりません。管理者に登録を依頼してください。")
+    try {
+      // まずGoogleスプレッドシートから取得を試みる
+      const student = await fetchStudentFromGAS(result)
+      
+      if (student) {
+        setStudentInfo(student)
+      } else {
+        // フォールバック: ローカルデータを使用
+        const fallbackStudent = fallbackStudentDatabase[result]
+        if (fallbackStudent) {
+          setStudentInfo(fallbackStudent)
+        } else {
+          setError("生徒情報が見つかりません。管理者にスプレッドシートへの登録を依頼してください。")
+        }
+      }
+    } catch (err) {
+      console.error("スキャン処理エラー:", err)
+      setError("生徒情報の取得中にエラーが発生しました。")
+    } finally {
+      setIsLoadingStudent(false)
     }
-  }
+  }, [fetchStudentFromGAS])
 
   const getCurrentDateTime = () => {
     const now = new Date()
@@ -112,19 +151,34 @@ export default function Home() {
       // Google Apps Scriptに送信
       const response = await fetch(GAS_URL, {
         method: 'POST',
-        mode: 'no-cors', // CORSを回避
         headers: {
           'Content-Type': 'text/plain',
         },
         body: JSON.stringify(data),
       })
 
-      // no-corsモードでは実際のレスポンスが取得できないため、常に成功とみなす
-      toast({
-        title: "送信完了",
-        description: "遅刻記録がGoogleスプレッドシートに送信されました",
-      })
-      resetForm()
+      // レスポンスを確認
+      const responseText = await response.text()
+      
+      try {
+        const result = JSON.parse(responseText)
+        if (result.success) {
+          toast({
+            title: "送信完了",
+            description: "遅刻記録がGoogleスプレッドシートに送信されました",
+          })
+          resetForm()
+        } else {
+          throw new Error(result.error || "送信に失敗しました")
+        }
+      } catch (parseError) {
+        // JSONパースに失敗した場合でも、リクエストは成功した可能性がある
+        toast({
+          title: "送信完了",
+          description: "遅刻記録を送信しました",
+        })
+        resetForm()
+      }
       
     } catch (error) {
       console.error('Submit error:', error)
@@ -187,7 +241,11 @@ export default function Home() {
                         <span className="font-semibold text-gray-700">学籍番号:</span>{" "}
                         <span className="text-blue-600 font-medium">{scannedResult}</span>
                       </p>
-                      {studentInfo && (
+                      {isLoadingStudent ? (
+                        <p className="text-base text-gray-500 animate-pulse">
+                          生徒情報を取得中...
+                        </p>
+                      ) : studentInfo ? (
                         <>
                           <p className="text-base">
                             <span className="font-semibold text-gray-700">クラス:</span>{" "}
@@ -198,7 +256,7 @@ export default function Home() {
                             <span className="text-blue-600 font-medium">{studentInfo.name}</span>
                           </p>
                         </>
-                      )}
+                      ) : null}
                       <p className="text-base">
                         <span className="font-semibold text-gray-700">日時:</span>{" "}
                         <span className="text-blue-600 font-medium">{getCurrentDateTime()}</span>
