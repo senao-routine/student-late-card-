@@ -6,60 +6,43 @@
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
-
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-
     --primary: 222.2 47.4% 11.2%;
     --primary-foreground: 210 40% 98%;
-
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
-
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
+    --radius: 0.75rem;
   }
 
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
-
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
-
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
-
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
-
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
@@ -75,40 +58,89 @@
   }
 }
 
-@media print {
-  body {
-    @apply bg-white text-black;
-  }
+/* ===================== */
+/* Material Design       */
+/* ===================== */
 
-  body * {
-    visibility: hidden !important;
-  }
-
-  .print-hide {
-    display: none !important;
-  }
-
-  .print-modal {
-    position: static !important;
-    background: transparent !important;
-    padding: 0 !important;
-  }
-
-  .print-area {
-    position: absolute !important;
-    inset: 0 !important;
-    width: 21cm !important;
-    max-width: 21cm !important;
-    padding: 0.5cm !important;
-    border: none !important;
-    box-shadow: none !important;
-    visibility: visible !important;
-    page-break-after: avoid !important;
-  }
-
-  .print-area * {
-    color: black !important;
-    visibility: visible !important;
-  }
+/* Elevation */
+.elevation-1 {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.06);
+}
+.elevation-2 {
+  box-shadow: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
+}
+.elevation-3 {
+  box-shadow: 0 10px 15px rgba(0,0,0,0.08), 0 4px 6px rgba(0,0,0,0.05);
 }
 
+/* Main page background: gradient + iso pattern overlay via pseudo-element */
+.app-bg {
+  position: relative;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #6d28d9 100%);
+}
+.app-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.06;
+  background-image:
+    linear-gradient(30deg, #fff 12%, transparent 12.5%, transparent 87%, #fff 87.5%),
+    linear-gradient(150deg, #fff 12%, transparent 12.5%, transparent 87%, #fff 87.5%),
+    linear-gradient(30deg, #fff 12%, transparent 12.5%, transparent 87%, #fff 87.5%),
+    linear-gradient(150deg, #fff 12%, transparent 12.5%, transparent 87%, #fff 87.5%),
+    linear-gradient(60deg, #fff 25%, transparent 25.5%, transparent 75%, #fff 75%),
+    linear-gradient(60deg, #fff 25%, transparent 25.5%, transparent 75%, #fff 75%);
+  background-size: 80px 140px;
+  background-position: 0 0, 0 0, 40px 70px, 40px 70px, 0 0, 40px 70px;
+}
+
+/* Glass card */
+.glass-card {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+/* Floating decorations */
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(2deg); }
+}
+@keyframes floatAlt {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(8px) rotate(-2deg); }
+}
+.float-slow { animation: float 6s ease-in-out infinite; }
+.float-medium { animation: floatAlt 4s ease-in-out infinite; }
+
+/* Scanner pulse */
+@keyframes pulseRing {
+  0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+  100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+}
+.pulse-ring { animation: pulseRing 2s ease-in-out infinite; }
+
+/* Button press effect */
+.mat-btn {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.mat-btn:active {
+  transform: scale(0.97);
+}
+
+@media print {
+  body { @apply bg-white text-black; }
+  body * { visibility: hidden !important; }
+  .print-hide { display: none !important; }
+  .print-modal { position: static !important; background: transparent !important; padding: 0 !important; }
+  .print-area {
+    position: absolute !important; inset: 0 !important;
+    width: 21cm !important; max-width: 21cm !important; padding: 0.5cm !important;
+    border: none !important; box-shadow: none !important;
+    visibility: visible !important; page-break-after: avoid !important;
+  }
+  .print-area * { color: black !important; visibility: visible !important; }
+}
