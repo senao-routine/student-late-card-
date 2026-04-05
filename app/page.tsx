@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 
 const QRScanner = dynamic(() => import("../components/QRScanner"), { ssr: false })
 
-const teachers = ["山本先生", "佐藤先生", "鈴木先生", "高橋先生"]
+const FALLBACK_TEACHERS = ["山本先生", "佐藤先生", "鈴木先生", "高橋先生"]
 
 type StudentData = { grade: string; classNum: string; number: string; name: string }
 
@@ -48,6 +48,7 @@ export default function Home() {
   const [isLoadingStudent, setIsLoadingStudent] = useState(false)
   const [isLoadingDatabase, setIsLoadingDatabase] = useState(true)
   const [databaseStudentCount, setDatabaseStudentCount] = useState(0)
+  const [teachers, setTeachers] = useState<string[]>(FALLBACK_TEACHERS)
   // 手入力モード用
   const [inputMode, setInputMode] = useState<"qr" | "manual">("qr")
   const [selectedGrade, setSelectedGrade] = useState<string>("")
@@ -57,9 +58,10 @@ export default function Home() {
   const allStudentsRef = useRef<Array<{ studentId: string } & StudentData>>([])
 
   useEffect(() => {
+    const GAS_URL = process.env.NEXT_PUBLIC_GAS_URL
+    if (!GAS_URL) { setIsLoadingDatabase(false); return }
+
     const loadAllStudents = async () => {
-      const GAS_URL = process.env.NEXT_PUBLIC_GAS_URL
-      if (!GAS_URL) { setIsLoadingDatabase(false); return }
       try {
         const response = await fetch(`${GAS_URL}?action=getStudents`)
         const data = await response.json()
@@ -80,7 +82,21 @@ export default function Home() {
         toast({ title: "データベース読み込みエラー", description: "生徒データの取得に失敗しました。", variant: "destructive" })
       } finally { setIsLoadingDatabase(false) }
     }
+
+    const loadTeachers = async () => {
+      try {
+        const response = await fetch(`${GAS_URL}?action=getTeachers`)
+        const data = await response.json()
+        if (data.success && data.teachers && data.teachers.length > 0) {
+          setTeachers(data.teachers.map((t: { name: string }) => t.name))
+        }
+      } catch (err) {
+        console.error("教員データ読み込みエラー:", err)
+      }
+    }
+
     loadAllStudents()
+    loadTeachers()
   }, [toast])
 
   useEffect(() => {
