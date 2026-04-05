@@ -122,6 +122,7 @@ function doGet(e) {
 // ========================================
 // 生徒情報を取得
 // ========================================
+// 生徒マスター列: A=学籍番号, B=学年, C=組, D=番号, E=氏名
 function getStudentInfo(studentId) {
   if (!studentId) {
     return ContentService
@@ -146,7 +147,6 @@ function getStudentInfo(studentId) {
   
   const data = sheet.getDataRange().getValues();
   
-  // ヘッダー行をスキップして検索
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]) === String(studentId)) {
       return ContentService
@@ -154,8 +154,10 @@ function getStudentInfo(studentId) {
           success: true,
           student: {
             studentId: String(data[i][0]),
-            class: data[i][1],
-            name: data[i][2]
+            grade: String(data[i][1]),
+            classNum: String(data[i][2]),
+            number: String(data[i][3]),
+            name: String(data[i][4])
           }
         }))
         .setMimeType(ContentService.MimeType.JSON);
@@ -190,13 +192,14 @@ function getAllStudents() {
   const data = sheet.getDataRange().getValues();
   const students = [];
   
-  // ヘッダー行をスキップ
   for (let i = 1; i < data.length; i++) {
     if (data[i][0]) {
       students.push({
         studentId: String(data[i][0]),
-        class: data[i][1],
-        name: data[i][2]
+        grade: String(data[i][1]),
+        classNum: String(data[i][2]),
+        number: String(data[i][3]),
+        name: String(data[i][4])
       });
     }
   }
@@ -408,26 +411,23 @@ function initializeSpreadsheet() {
   console.log('「本日の遅刻」シートを作成/確認しました');
   
   // 3. 「生徒マスター」シートを作成
-  const studentHeaders = ['学籍番号', 'クラス', '氏名'];
+  const studentHeaders = ['学籍番号', '学年', '組', '番号', '氏名'];
   const studentsSheet = getOrCreateSheet(spreadsheet, CONFIG.SHEET_STUDENTS, studentHeaders);
   
   // サンプルデータを追加（既存データがない場合）
   if (studentsSheet.getLastRow() <= 1) {
     const sampleStudents = [
-      ['12344321', '3-A', '山田太郎'],
-      ['67890', '2-B', '佐藤花子'],
-      ['11111', '1-C', '田中一郎'],
-      ['22222', '1-A', '鈴木次郎'],
-      ['33333', '2-A', '高橋三郎']
+      ['12344321', '中3', '1', '1', '山田太郎'],
+      ['67890', '高1', '2', '5', '佐藤花子']
     ];
-    studentsSheet.getRange(2, 1, sampleStudents.length, 3).setValues(sampleStudents);
+    studentsSheet.getRange(2, 1, sampleStudents.length, 5).setValues(sampleStudents);
   }
   console.log('「生徒マスター」シートを作成/確認しました');
   
   // 列幅を調整
   allHistorySheet.autoResizeColumns(1, 10);
   todaySheet.autoResizeColumns(1, 10);
-  studentsSheet.autoResizeColumns(1, 3);
+  studentsSheet.autoResizeColumns(1, 5);
   
   console.log('初期設定が完了しました！');
 }
@@ -466,4 +466,148 @@ function testAddRecord() {
   
   const result = doPost(testData);
   console.log(result.getContent());
+}
+
+// ========================================
+// CSV取込 → 生徒マスター変換
+// ========================================
+// 使い方:
+//   1. スプレッドシートに「CSV取込」シートを作成
+//   2. 学事システムから出力したCSVの内容をそのまま貼り付け
+//      (ヘッダー行: 学籍番号,生徒番号,本年,本組,本番,生徒氏名,性別,ふりがな)
+//   3. GASエディタからこの関数を実行
+//   4. 「生徒マスター」シートにデータが反映される
+//
+// 年度更新時:
+//   「CSV取込」シートに新しいCSVを貼り直して再実行するだけでOK
+// ========================================
+
+const CONFIG_CSV = {
+  SHEET_CSV_IMPORT: 'CSV取込'
+};
+
+// 本年（学事システムの値）→ 学年表示名の変換
+// 1=中1, 2=中2, 3=中3, 4=高1, 5=高2, 6=高3
+function convertYearToGrade(yearValue) {
+  var y = parseInt(yearValue, 10);
+  var gradeMap = {
+    1: '中1', 2: '中2', 3: '中3',
+    4: '高1', 5: '高2', 6: '高3'
+  };
+  return gradeMap[y] || (y + '年');
+}
+
+function importCSVToStudentMaster() {
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+
+  // 「CSV取込」シートを取得
+  const csvSheet = spreadsheet.getSheetByName(CONFIG_CSV.SHEET_CSV_IMPORT);
+  if (!csvSheet) {
+    console.error('「CSV取込」シートが見つかりません。シートを作成してCSVデータを貼り付けてください。');
+    SpreadsheetApp.getUi().alert(
+      'エラー',
+      '「CSV取込」シートが見つかりません。\n\n' +
+      '手順:\n' +
+      '1. シートタブの「+」で新しいシートを追加\n' +
+      '2. シート名を「CSV取込」に変更\n' +
+      '3. 学事システムのCSVデータをA1に貼り付け\n' +
+      '4. この関数を再実行',
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    return;
+  }
+
+  const csvData = csvSheet.getDataRange().getValues();
+  if (csvData.length <= 1) {
+    console.error('CSV取込シートにデータがありません');
+    SpreadsheetApp.getUi().alert('エラー', 'CSV取込シートにデータがありません。', SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
+
+  // ヘッダー行から列のインデックスを特定
+  const headers = csvData[0].map(function(h) { return String(h).trim(); });
+  const colIndex = {
+    studentId: headers.indexOf('学籍番号'),
+    year:      headers.indexOf('本年'),
+    classNum:  headers.indexOf('本組'),
+    number:    headers.indexOf('本番'),
+    name:      headers.indexOf('生徒氏名')
+  };
+
+  // 必須列の存在チェック
+  const missing = [];
+  if (colIndex.studentId === -1) missing.push('学籍番号');
+  if (colIndex.year === -1) missing.push('本年');
+  if (colIndex.classNum === -1) missing.push('本組');
+  if (colIndex.number === -1) missing.push('本番');
+  if (colIndex.name === -1) missing.push('生徒氏名');
+
+  if (missing.length > 0) {
+    const msg = '必須列が見つかりません: ' + missing.join(', ') + '\nヘッダー行を確認してください。';
+    console.error(msg);
+    SpreadsheetApp.getUi().alert('エラー', msg, SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
+
+  // CSVデータを生徒マスター形式に変換
+  // [学籍番号, 学年, 組, 番号, 氏名]
+  const students = [];
+  for (var i = 1; i < csvData.length; i++) {
+    var row = csvData[i];
+    var studentId = String(row[colIndex.studentId]).trim();
+    if (!studentId || studentId === '') continue;
+
+    var grade = convertYearToGrade(row[colIndex.year]);
+    var classNum = String(row[colIndex.classNum]).trim();
+    var number = String(row[colIndex.number]).trim();
+    var name = String(row[colIndex.name]).trim();
+
+    students.push([studentId, grade, classNum, number, name]);
+  }
+
+  if (students.length === 0) {
+    SpreadsheetApp.getUi().alert('エラー', '変換可能なデータが見つかりませんでした。', SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
+
+  // 「生徒マスター」シートを取得または作成
+  const studentHeaders = ['学籍番号', '学年', '組', '番号', '氏名'];
+  const masterSheet = getOrCreateSheet(spreadsheet, CONFIG.SHEET_STUDENTS, studentHeaders);
+
+  // 既存データをクリア（ヘッダーは残す）
+  var lastRow = masterSheet.getLastRow();
+  if (lastRow > 1) {
+    masterSheet.getRange(2, 1, lastRow - 1, masterSheet.getLastColumn()).clearContent();
+  }
+
+  // ヘッダーを再設定
+  masterSheet.getRange(1, 1, 1, studentHeaders.length).setValues([studentHeaders]);
+  styleHeaderRow(masterSheet, studentHeaders.length, '#4285f4');
+
+  // 変換したデータを書き込み
+  masterSheet.getRange(2, 1, students.length, 5).setValues(students);
+
+  // 列幅を調整
+  masterSheet.setColumnWidth(1, 120); // 学籍番号
+  masterSheet.setColumnWidth(2, 60);  // 学年
+  masterSheet.setColumnWidth(3, 50);  // 組
+  masterSheet.setColumnWidth(4, 50);  // 番号
+  masterSheet.setColumnWidth(5, 120); // 氏名
+
+  SpreadsheetApp.flush();
+
+  var msg = '生徒マスターへの取込が完了しました！\n\n' +
+    '取込件数: ' + students.length + '名\n' +
+    'クラス数: ' + getUniqueClassCount(students) + 'クラス';
+  console.log(msg);
+  SpreadsheetApp.getUi().alert('取込完了', msg, SpreadsheetApp.getUi().ButtonSet.OK);
+}
+
+// ユニークなクラス数をカウント（学年+組の組み合わせ）
+function getUniqueClassCount(students) {
+  var classes = {};
+  for (var i = 0; i < students.length; i++) {
+    classes[students[i][1] + '-' + students[i][2]] = true;
+  }
+  return Object.keys(classes).length;
 }
