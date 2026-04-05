@@ -7,6 +7,7 @@
 //   シート1「全履歴」: 全ての遅刻記録を蓄積
 //   シート2「本日の遅刻」: 当日のデータのみ自動表示
 //   シート3「生徒マスター」: 学籍番号と生徒情報の対応（任意）
+//   シート4「教員マスター」: 担当教員の一覧
 // ========================================
 
 // 設定
@@ -14,7 +15,8 @@ const CONFIG = {
   SPREADSHEET_ID: '1dkUxgjDPDL_6sAhBzhZoKQjxBIF53kWnKYfYz3it-WE', // ご自身のスプレッドシートIDに変更
   SHEET_ALL_HISTORY: '全履歴',
   SHEET_TODAY: '本日の遅刻',
-  SHEET_STUDENTS: '生徒マスター'
+  SHEET_STUDENTS: '生徒マスター',
+  SHEET_TEACHERS: '教員マスター'
 };
 
 // ========================================
@@ -95,7 +97,11 @@ function doGet(e) {
       case 'getTodayRecords':
         // 本日の遅刻記録を取得
         return getTodayRecords();
-      
+
+      case 'getTeachers':
+        // 教員リストを取得
+        return getAllTeachers();
+
       default:
         // ステータス確認
         return ContentService
@@ -104,7 +110,7 @@ function doGet(e) {
             message: 'Google Apps Script is ready!',
             spreadsheetId: CONFIG.SPREADSHEET_ID,
             timestamp: new Date().toISOString(),
-            availableActions: ['getStudent', 'getStudents', 'getTodayRecords']
+            availableActions: ['getStudent', 'getStudents', 'getTodayRecords', 'getTeachers']
           }))
           .setMimeType(ContentService.MimeType.JSON);
     }
@@ -256,6 +262,43 @@ function getTodayRecords() {
       date: Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd'),
       count: records.length,
       records: records
+    }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ========================================
+// 全教員リストを取得
+// ========================================
+// 教員マスター列: A=教員名
+function getAllTeachers() {
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_TEACHERS);
+
+  if (!sheet) {
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        success: false,
+        error: '教員マスターシートが見つかりません'
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const data = sheet.getDataRange().getValues();
+  const teachers = [];
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0]) {
+      teachers.push({
+        name: String(data[i][0]).trim()
+      });
+    }
+  }
+
+  return ContentService
+    .createTextOutput(JSON.stringify({
+      success: true,
+      count: teachers.length,
+      teachers: teachers
     }))
     .setMimeType(ContentService.MimeType.JSON);
 }
@@ -423,12 +466,29 @@ function initializeSpreadsheet() {
     studentsSheet.getRange(2, 1, sampleStudents.length, 5).setValues(sampleStudents);
   }
   console.log('「生徒マスター」シートを作成/確認しました');
-  
+
+  // 4. 「教員マスター」シートを作成
+  const teacherHeaders = ['教員名'];
+  const teachersSheet = getOrCreateSheet(spreadsheet, CONFIG.SHEET_TEACHERS, teacherHeaders);
+
+  // サンプルデータを追加（既存データがない場合）
+  if (teachersSheet.getLastRow() <= 1) {
+    const sampleTeachers = [
+      ['山本先生'],
+      ['佐藤先生'],
+      ['鈴木先生'],
+      ['高橋先生']
+    ];
+    teachersSheet.getRange(2, 1, sampleTeachers.length, 1).setValues(sampleTeachers);
+  }
+  console.log('「教員マスター」シートを作成/確認しました');
+
   // 列幅を調整
   allHistorySheet.autoResizeColumns(1, 10);
   todaySheet.autoResizeColumns(1, 10);
   studentsSheet.autoResizeColumns(1, 5);
-  
+  teachersSheet.setColumnWidth(1, 150);
+
   console.log('初期設定が完了しました！');
 }
 
