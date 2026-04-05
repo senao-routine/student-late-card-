@@ -17,18 +17,16 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
   useEffect(() => {
     const qrCodeRegionId = "qr-reader"
     let isMounted = true
-    
+
     const startScanner = async () => {
       try {
         if (!isMounted) return
-        
-        // 既存のHTML要素をクリア
+
         const element = document.getElementById(qrCodeRegionId)
         if (element) {
           element.innerHTML = ''
         }
-        
-        // 既存のスキャナーを停止
+
         if (scannerRef.current) {
           try {
             await scannerRef.current.stop()
@@ -37,11 +35,11 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
             // 停止エラーは無視
           }
         }
-        
+
         if (!isMounted) return
-        
+
         scannerRef.current = new Html5Qrcode(qrCodeRegionId)
-        
+
         await scannerRef.current.start(
           { facingMode: facingMode },
           {
@@ -67,7 +65,6 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
       }
     }
 
-    // 少し遅延させて初期化
     const timer = setTimeout(startScanner, 100)
 
     return () => {
@@ -87,24 +84,27 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
 
   return (
     <div className="w-full">
-      <div className="text-center mb-4">
-        <p className="text-lg text-gray-600 font-medium">学生証のQRコードをスキャン</p>
-        <p className="text-sm text-gray-500 mt-1">カメラにQRコードを向けてください</p>
+      <div className="text-center mb-2">
         <button
           onClick={toggleCamera}
-          className="mt-3 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition duration-200 ease-in-out transform hover:scale-105 shadow-md"
+          className="px-5 py-2.5 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white text-sm font-semibold rounded-full transition-all active:scale-95 elevation-1 uppercase tracking-wider"
           disabled={!isScanning}
         >
-          {facingMode === "environment" ? "📱 インカメラに切替" : "📷 背面カメラに切替"}
+          <span className="flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+            {facingMode === "environment" ? "インカメラに切替" : "背面カメラに切替"}
+          </span>
         </button>
       </div>
-      <div id="qr-reader" className="rounded-lg shadow-lg overflow-hidden mx-auto" style={{ maxWidth: '100%', minHeight: '250px' }}></div>
+      <div id="qr-reader" className="rounded-2xl overflow-hidden mx-auto" style={{ maxWidth: '100%', minHeight: '200px' }}></div>
       {error && (
-        <div className="mt-4 text-center">
-          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg" role="alert">
-            <p className="font-medium">エラーが発生しました</p>
-            <p className="text-sm mt-1">{error}</p>
-            <p className="text-sm mt-2 text-red-600">
+        <div className="mt-3 text-center">
+          <div className="bg-red-50/80 backdrop-blur-sm border border-red-200 text-red-700 p-3 rounded-xl elevation-1" role="alert">
+            <p className="font-semibold text-sm">エラーが発生しました</p>
+            <p className="text-xs mt-1">{error}</p>
+            <p className="text-xs mt-1.5 text-red-500">
               カメラへのアクセスを許可してページを更新してください
             </p>
           </div>
@@ -112,16 +112,19 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
       )}
       <style jsx global>{`
         #qr-reader {
-          border: 3px solid #3b82f6;
-          border-radius: 0.75rem;
-          background: #f8fafc;
+          border: 2px solid rgba(99, 102, 241, 0.3);
+          border-radius: 1rem;
+          background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+          box-shadow:
+            0 4px 14px rgba(99, 102, 241, 0.1),
+            inset 0 1px 2px rgba(255, 255, 255, 0.8);
         }
         #qr-reader video {
-          border-radius: 0.5rem;
+          border-radius: 0.75rem;
           display: block;
           width: 100% !important;
           height: auto !important;
-          max-height: 400px;
+          max-height: 350px;
           object-fit: cover;
         }
         #qr-reader__dashboard_section {
@@ -135,26 +138,26 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
         }
         #qr-reader__cam_qr_result {
           padding: 8px;
-          background: rgba(59, 130, 246, 0.1);
-          border-radius: 0.5rem;
+          background: rgba(99, 102, 241, 0.08);
+          border-radius: 0.75rem;
           margin-top: 8px;
         }
-        
+
         /* iPad横向き最適化 */
         @media (min-width: 1024px) {
           #qr-reader {
-            max-width: 500px;
+            max-width: 450px;
             margin: 0 auto;
           }
           #qr-reader video {
-            max-height: 350px;
+            max-height: 300px;
           }
         }
-        
+
         /* タブレット縦向き */
         @media (min-width: 768px) and (max-width: 1023px) {
           #qr-reader video {
-            max-height: 300px;
+            max-height: 280px;
           }
         }
       `}</style>
@@ -163,4 +166,3 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan }) => {
 }
 
 export default QRScanner
-
